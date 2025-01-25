@@ -1,13 +1,26 @@
-# type cansat code
+#include "Sensors.h"
+
+// Δημιουργία αντικειμένου Sensors
+Sensors sensors;
+
 void setup() {
-  // initialize digital pin LED_BUILTIN as an output.
-  pinMode(13, OUTPUT);
+    Serial.begin(115200);
+    Serial.println("Initializing sensors...");
+
+    // Αρχικοποίηση αισθητήρων
+    sensors.initialize();
+
+    Serial.println("Sensor initialization completed!");
 }
 
-// the loop function runs over and over again forever
 void loop() {
-  digitalWrite(13, HIGH);  // turn the LED on (HIGH is the voltage level)
-  delay(1000);                      // wait for a second
-  digitalWrite(13, LOW);   // turn the LED off by making the voltage LOW
-  delay(1000);                      // wait for a second
+    // Ανάγνωση όλων των τιμών
+    sensors.read();
+
+    // Εκτύπωση των τιμών ως string
+    Serial.print("All Sensor Values: ");
+    Serial.println(sensors.to_string().c_str());
+
+    Serial.println("----------------------");
+    delay(2000); // Αναμονή 2 δευτερόλεπτα
 }
