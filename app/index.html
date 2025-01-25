@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hotspot Map</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background-color: #1e1e2f;
+            color: #fff;
+        }
+
+        #map {
+            height: 80%;
+            width: 80%;
+            border-radius: 15px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        h1 {
+            margin: 20px 0;
+            font-size: 2rem;
+        }
+    </style>
+    <script async src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY"></script>
+    <script>
+        // Replace with your API endpoint for hotspots
+        const HOTSPOT_API = 'localhost:3000/api/hotspots';
+
+        async function fetchHotspots() {
+            const response = await fetch(HOTSPOT_API);
+            const reader = response.body.getReader();
+            let decoder = new TextDecoder("utf-8");
+            let text = '';
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                text += decoder.decode(value);
+
+                const messages = text.split('\n\n');
+                for (const message of messages) {
+                    if (message.startsWith('data:')) {
+                        const data = JSON.parse(message.slice(5));
+                        addHotspot(data);
+                    }
+                }
+            }
+        }
+
+        let map;
+        const markers = [];
+
+        function initMap() {
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: { lat: 0, lng: 0 },
+                zoom: 2,
+                styles: [
+                    {
+                        featureType: "all",
+                        elementType: "geometry.fill",
+                        stylers: [{ color: "#242f3e" }],
+                    },
+                    {
+                        featureType: "all",
+                        elementType: "labels.text.fill",
+                        stylers: [{ color: "#746855" }],
+                    },
+                    {
+                        featureType: "administrative",
+                        elementType: "geometry",
+                        stylers: [{ color: "#757575" }],
+                    },
+                    {
+                        featureType: "road",
+                        elementType: "geometry",
+                        stylers: [{ color: "#38414e" }],
+                    },
+                ],
+            });
+
+            fetchHotspots();
+        }
+
+        function addHotspot(hotspot) {
+            const marker = new google.maps.Marker({
+                position: { lat: hotspot.latitude, lng: hotspot.longitude },
+                map: map,
+                title: `Confidence: ${hotspot.confidence}`,
+            });
+            markers.push(marker);
+        }
+    </script>
+</head>
+<body>
+    <h1>Hotspot Map</h1>
+    <div id="map"></div>
+    <script>
+        window.onload = initMap;
+    </script>
+</body>
+</html>
