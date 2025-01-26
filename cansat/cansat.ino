@@ -5,12 +5,12 @@ Sensors sensors;
 
 void setup() {
     Serial.begin(115200);
-    Serial.println("Initializing sensors...");
+    Serial.println("Initializing sensors... Let's go!!!");
 
     // Αρχικοποίηση αισθητήρων
     sensors.initialize();
 
-    Serial.println("Sensor initialization completed!");
+    Serial.println("Sensor initialization completed! Yeah!!!!!");
 }
 
 void loop() {
