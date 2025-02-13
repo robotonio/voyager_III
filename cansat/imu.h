@@ -9,13 +9,18 @@
 
 class IMU {
   private:
-    GY521 gy521; // GY521 αισθητήρας
     Adafruit_LIS3MDL lis3mdl; // Μαγνητόμετρο
+    int16_t groll;
+    int16_t gpitch;
+    int16_t gyaw;
+    float lyaw;
+    uint8_t readRegister(uint8_t devAddr, uint8_t regAddr);
+    void writeRegister(uint8_t devAddr, uint8_t regAddr, uint8_t data);
 
   public:
     IMU(); // Constructor
     bool initialize(); // Αρχικοποίηση των αισθητήρων
-    int16_t readMPU(); // Ανάγνωση δεδομένων από τον MPU6050
+    void read(); // Ανάγνωση δεδομένων από τον MPU6050
     float getYaw(); // Υπολογισμός Yaw
     float getPitch(); // Υπολογισμός Pitch
     float getRoll(); // Υπολογισμός Roll
