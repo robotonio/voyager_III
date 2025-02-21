@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Χάρτης και Εικόνα σε Μία Σελίδα</title>
+  <!-- Ρυθμίζει το viewport για κινητά -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+    /* Δομή της σελίδας */
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: sans-serif;
+    }
+
+    /* Το πάνω μέρος με το χάρτη */
+    #map {
+      width: 100%;
+      height: 50vh; /* Μπορείς να προσαρμόσεις το ύψος όπως θέλεις */
+    }
+
+    /* Το κάτω μέρος με την εικόνα */
+    #image-container {
+      width: 100%;
+      text-align: center; /* Κεντράρει την εικόνα οριζόντια */
+    }
+
+    #vtx-image {
+      max-width: 100%; /* Κάνει την εικόνα responsive */
+      height: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>Ενιαία Σελίδα: Χάρτης & Εικόνα</h1>
+  
+  <!-- Χώρος για τον χάρτη -->
+  <div id="map"></div>
+  
+  <!-- Χώρος για την εικόνα -->
+  <div id="image-container">
+    <img src="{{ url_for('static', filename='images/latest.jpg') }}" alt="VTX Image" id="vtx-image" style="max-width: 100%; height: auto;">
+  </div>
+
+  <!-- Φόρτωση του Google Maps API (αντικατέστησε το YOUR_API_KEY με το δικό σου API key) -->
+  <script src="https://maps.googleapis.com/maps/api/js?key={{ google_api_key }}"></script>
+
+
+  <script>
+    let map;
+    let markers = [];
+
+    function initMap() {
+      // Δημιουργούμε τον χάρτη
+      map = new google.maps.Map(document.getElementById('map'), {
+        zoom: 6,
+        center: { lat: 37.9838, lng: 23.7275 }
+      });
+      
+      // Φορτώνουμε τα σημεία ενδιαφέροντος αρχικά
+      updatePoints();
+      
+      // Κάθε 5 δευτερόλεπτα κάνουμε update
+      setInterval(updatePoints, 5000);
+    }
+
+    function updatePoints() {
+      fetch('/points')
+        .then(response => response.json())
+        .then(data => {
+          // Αφαιρούμε τους παλιούς markers
+          markers.forEach(marker => marker.setMap(null));
+          markers = [];
+          
+          // Φτιάχνουμε ένα LatLngBounds για αυτόματο zoom
+          let bounds = new google.maps.LatLngBounds();
+
+          // Ορισμός εικονιδίων: ο πρώτος marker ως μπλε (π.χ. arrow) και τα υπόλοιπα κόκκινα
+          const blueIcon = "http://maps.google.com/mapfiles/ms/icons/blue-dot.png";
+          const redIcon = "http://maps.google.com/mapfiles/ms/icons/red-dot.png";
+
+          data.forEach((point, index) => {
+            let marker = new google.maps.Marker({
+              position: { lat: point.lat, lng: point.lng },
+              map: map,
+              title: point.name,
+              icon: (index === 0 ? blueIcon : redIcon)
+            });
+            markers.push(marker);
+            bounds.extend(marker.getPosition());
+          });
+
+          // Αυτόματο zoom ώστε να περιλαμβάνονται όλα τα markers
+          if (data.length > 0) {
+            map.fitBounds(bounds);
+          }
+        })
+        .catch(error => console.error("Σφάλμα στην ανάκτηση των σημείων:", error));
+    }
+
+    // Όταν φορτώσει η σελίδα, ξεκινάμε τον χάρτη
+    window.onload = initMap;
+  </script>
+</body>
+</html>

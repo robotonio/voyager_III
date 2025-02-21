@@ -9,33 +9,47 @@ LoRaModule::LoRaModule(int ssPin, int rstPin, int dio0Pin, long freq, int sync) 
 }
 
 void LoRaModule::begin() {
-  // Ρύθμιση του LoRa transceiver module
+  // Ορίζουμε το CS του LoRa αρχικά ανενεργό
+  pinMode(ss, OUTPUT);
+  digitalWrite(ss, HIGH);
+
+  Serial.println("Initializing LoRa...");
   LoRa.setPins(ss, rst, dio0);
-  
-  // Αντικαταστήστε το LoRa.begin(---E-) με τη συχνότητα της περιοχής σας
+
   while (!LoRa.begin(frequency)) {
+    Serial.println("LoRa initialization failed. Retrying...");
     delay(500);
   }
-  // Αλλαγή του sync word για να ταιριάζει με τον δέκτη
   LoRa.setSyncWord(syncWord);
+  Serial.println("LoRa Initialized Successfully!");
 }
 
-void LoRaModule::sendString(String message) {
-  // Αποστολή πακέτου LoRa στον δέκτη
+void LoRaModule::sendString(String message, int sdCS) {
+  // Απενεργοποιούμε το SD πριν ενεργοποιήσουμε το LoRa
+  digitalWrite(sdCS, HIGH);
+  digitalWrite(ss, LOW); // Ενεργοποίηση LoRa
+
   LoRa.beginPacket();
   LoRa.print(message);
   LoRa.endPacket();
+
+  digitalWrite(ss, HIGH); // Απενεργοποίηση LoRa
 }
 
-String LoRaModule::receiveString() {
+String LoRaModule::receiveString(int sdCS) {
   String receivedMessage = "";
-  // Προσπάθεια ανάλυσης πακέτου
+
+  // Απενεργοποιούμε το SD πριν χρησιμοποιήσουμε το LoRa
+  digitalWrite(sdCS, HIGH);
+  digitalWrite(ss, LOW); // Ενεργοποίηση LoRa
+
   int packetSize = LoRa.parsePacket();
   if (packetSize) {
-    // Λήψη πακέτου
     while (LoRa.available()) {
       receivedMessage += (char)LoRa.read();
     }
   }
+
+  digitalWrite(ss, HIGH); // Απενεργοποίηση LoRa
   return receivedMessage;
 }

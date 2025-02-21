@@ -15,8 +15,8 @@ class LoRaModule {
   public:
     LoRaModule(int ssPin, int rstPin, int dio0Pin, long freq, int sync);
     void begin();
-    void sendString(String message);
-    String receiveString();
+    void sendString(String message, int sdCS);
+    String receiveString(int sdCS);
 };
 
 #endif
