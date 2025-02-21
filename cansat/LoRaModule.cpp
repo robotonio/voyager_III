@@ -1,55 +1,41 @@
-#include "LoRaModule.h"
+  #include "LoRaModule.h"
 
-LoRaModule::LoRaModule(int ssPin, int rstPin, int dio0Pin, long freq, int sync) {
-  ss = ssPin;
-  rst = rstPin;
-  dio0 = dio0Pin;
-  frequency = freq;
-  syncWord = sync;
-}
-
-void LoRaModule::begin() {
-  // Ορίζουμε το CS του LoRa αρχικά ανενεργό
-  pinMode(ss, OUTPUT);
-  digitalWrite(ss, HIGH);
-
-  Serial.println("Initializing LoRa...");
-  LoRa.setPins(ss, rst, dio0);
-
-  while (!LoRa.begin(frequency)) {
-    Serial.println("LoRa initialization failed. Retrying...");
-    delay(500);
+  LoRaModule::LoRaModule(int ssPin, int rstPin, int dio0Pin, long freq, int sync) {
+    ss = ssPin;
+    rst = rstPin;
+    dio0 = dio0Pin;
+    frequency = freq;
+    syncWord = sync;
   }
-  LoRa.setSyncWord(syncWord);
-  Serial.println("LoRa Initialized Successfully!");
-}
 
-void LoRaModule::sendString(String message, int sdCS) {
-  // Απενεργοποιούμε το SD πριν ενεργοποιήσουμε το LoRa
-  digitalWrite(sdCS, HIGH);
-  digitalWrite(ss, LOW); // Ενεργοποίηση LoRa
-
-  LoRa.beginPacket();
-  LoRa.print(message);
-  LoRa.endPacket();
-
-  digitalWrite(ss, HIGH); // Απενεργοποίηση LoRa
-}
-
-String LoRaModule::receiveString(int sdCS) {
-  String receivedMessage = "";
-
-  // Απενεργοποιούμε το SD πριν χρησιμοποιήσουμε το LoRa
-  digitalWrite(sdCS, HIGH);
-  digitalWrite(ss, LOW); // Ενεργοποίηση LoRa
-
-  int packetSize = LoRa.parsePacket();
-  if (packetSize) {
-    while (LoRa.available()) {
-      receivedMessage += (char)LoRa.read();
+  void LoRaModule::begin() {
+    // Ρύθμιση του LoRa transceiver module
+    LoRa.setPins(ss, rst, dio0);
+    
+    // Αντικαταστήστε το LoRa.begin(---E-) με τη συχνότητα της περιοχής σας
+    while (!LoRa.begin(frequency)) {
+      delay(500);
     }
+    // Αλλαγή του sync word για να ταιριάζει με τον δέκτη
+    LoRa.setSyncWord(syncWord);
   }
 
-  digitalWrite(ss, HIGH); // Απενεργοποίηση LoRa
-  return receivedMessage;
-}
+  void LoRaModule::sendString(String message) {
+    // Αποστολή πακέτου LoRa στον δέκτη
+    LoRa.beginPacket();
+    LoRa.print(message);
+    LoRa.endPacket();
+  }
+
+  String LoRaModule::receiveString() {
+    String receivedMessage = "";
+    // Προσπάθεια ανάλυσης πακέτου
+    int packetSize = LoRa.parsePacket();
+    if (packetSize) {
+      // Λήψη πακέτου
+      while (LoRa.available()) {
+        receivedMessage += (char)LoRa.read();
+      }
+    }
+    return receivedMessage;
+  }

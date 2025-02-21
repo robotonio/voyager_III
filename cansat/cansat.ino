@@ -1,19 +1,99 @@
-#include <HardwareSerial.h>
+// #include <SPI.h>
+// #include <LoRa.h>
 
-HardwareSerial gpsSerial(1);
-#define RX_PIN 43
-#define TX_PIN 44
-#define GPS_BAUD 9600
+// //define the pins used by the transceiver module
+// #define ss 3
+// #define rst 7
+// #define dio0 38
+
+// int counter = 0;
+
+// void setup() {
+//   //initialize Serial Monitor
+//   Serial.begin(115200);
+//   while (!Serial);
+//   Serial.println("LoRa Sender");
+
+//   //setup LoRa transceiver module
+//   LoRa.setPins(ss, rst, dio0);
+  
+//   //replace the LoRa.begin(---E-) argument with your location's frequency 
+//   //433E6 for Asia
+//   //868E6 for Europe
+//   //915E6 for North America
+//   while (!LoRa.begin(433E6)) {
+//     Serial.println(".");
+//     delay(500);
+//   }
+//    // Change sync word (0xF3) to match the receiver
+//   // The sync word assures you don't get LoRa messages from other LoRa transceivers
+//   // ranges from 0-0xFF
+//   LoRa.setSyncWord(0xF3);
+//   Serial.println("LoRa Initializing OK!");
+// }
+
+// void loop() {
+//   Serial.print("Sending packet: ");
+//   Serial.println(counter);
+
+//   //Send LoRa packet to receiver
+//   LoRa.beginPacket();
+//   LoRa.print("hello ");
+//   LoRa.print(counter);
+//   LoRa.endPacket();
+
+//   counter++;
+
+//   delay(5000);
+// }
+
+#include <SPI.h>
+#include <LoRa.h>
+
+//define the pins used by the transceiver module
+#define ss 5
+#define rst 27
+#define dio0 2
 
 void setup() {
-    Serial.begin(115200);
-    gpsSerial.begin(GPS_BAUD, SERIAL_8N1, RX_PIN, TX_PIN);
-    Serial.println("Reading GPS Raw Data...");
+  //initialize Serial Monitor
+  Serial.begin(115200);
+  while (!Serial);
+  Serial.println("LoRa Receiver");
+
+  //setup LoRa transceiver module
+  LoRa.setPins(ss, rst, dio0);
+  
+  //replace the LoRa.begin(---E-) argument with your location's frequency 
+  //433E6 for Asia
+  //868E6 for Europe
+  //915E6 for North America
+  while (!LoRa.begin(433E6)) {
+    Serial.println(".");
+    delay(500);
+  }
+   // Change sync word (0xF3) to match the receiver
+  // The sync word assures you don't get LoRa messages from other LoRa transceivers
+  // ranges from 0-0xFF
+  LoRa.setSyncWord(0xF3);
+  Serial.println("LoRa Initializing OK!");
 }
 
 void loop() {
-    while (gpsSerial.available()) {
-        char c = gpsSerial.read();
-        Serial.print(c); // Εκτύπωση ακατέργαστων NMEA δεδομένων
+  // try to parse packet
+  int packetSize = LoRa.parsePacket();
+  if (packetSize) {
+    // received a packet
+    Serial.print("Received packet '");
+
+    // read packet
+    while (LoRa.available()) {
+      String LoRaData = LoRa.readString();
+      Serial.print(LoRaData); 
     }
+
+    // print RSSI of packet
+    Serial.print("' with RSSI ");
+    Serial.println(LoRa.packetRssi());
+  }
 }
