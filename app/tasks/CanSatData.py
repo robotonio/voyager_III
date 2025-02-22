@@ -157,43 +157,6 @@ class CanSatData:
             self.hotspots = new_data.hotspots
             self.timestamp = new_data.timestamp
 
-    # Getters
-    def get_altitude(self):
-        return self.altitude
-
-    def get_temperature(self):
-        return self.temperature
-
-    def get_pressure(self):
-        return self.pressure
-
-    def get_gps_time(self):
-        return self.gps_time
-
-    def get_latitude(self):
-        return self.latitude
-
-    def get_longitude(self):
-        return self.longitude
-
-    def get_pitch(self):
-        return self.pitch
-
-    def get_roll(self):
-        return self.roll
-
-    def get_yaw(self):
-        return self.yaw
-
-    def get_is_vtx_on(self):
-        return self.is_vtx_on
-
-    def get_hotspots(self):
-        return self.hotspots
-
-    def get_timestamp(self):
-        return self.timestamp
-
     def print_data(self):
         """
         Prints the object's data in a readable format.
