@@ -1,55 +1,39 @@
 #include <SPI.h>
 #include <LoRa.h>
-#include "RGBLed.h"
+#include "LoRaModule.h"
+#include "CanSatData.h"
 
-//define the pins used by the transceiver module
-#define ss 5
-#define rst 6
-#define dio0 4
+// Ορισμός των pins για το LoRa module
+#define SS_PIN 5
+#define RST_PIN 6
+#define DIO0_PIN 4
 
-int counter = 0;
-
-RGBLed rgb = RGBLed(11, 10, 8);
+// Δημιουργία αντικειμένου LoRaModule με συχνότητα 868 MHz και sync word 0xF3
+LoRaModule lora(SS_PIN, RST_PIN, DIO0_PIN, 433E6, 0xF3);
 
 void setup() {
-  //initialize Serial Monitor
   Serial.begin(115200);
   while (!Serial);
-  Serial.println("LoRa Sender");
-  rgb.begin();
-
-  //setup LoRa transceiver module
-  LoRa.setPins(ss, rst, dio0);
+  Serial.println("LoRa Sender - Sending dump data using CanSatData");
   
-  //replace the LoRa.begin(---E-) argument with your location's frequency 
-  //433E6 for Asia
-  //868E6 for Europe
-  //915E6 for North America
-  while (!LoRa.begin(868E6)) {
-    Serial.println(".");
-    delay(500);
-  }
-   // Change sync word (0xF3) to match the receiver
-  // The sync word assures you don't get LoRa messages from other LoRa transceivers
-  // ranges from 0-0xFF
-  LoRa.setSyncWord(0xF3);
-  Serial.println("LoRa Initializing OK!");
+  // Εκκίνηση του LoRa module μέσω της κλάσης
+  lora.begin();
+  Serial.println("LoRa Initialized!");
 }
 
 void loop() {
-  Serial.print("Sending packet: ");
-  Serial.println(counter);
+  // Δημιουργία dummy δεδομένων μέσω της CanSatData
+  CanSatData dumpData = CanSatData::createDump();
+  // Μετατροπή των δεδομένων σε string (σε μορφή CSV περικλεισμένη από #)
+  String dumpString = dumpData.toString();
 
-  //Send LoRa packet to receiver
-  rgb.setColor(0, 255, 0);
-  LoRa.beginPacket();
-  LoRa.print("hello ");
-  LoRa.print(counter);
-  LoRa.endPacket();
-  delay(500);
-  rgb.turnOff();
+  // Εμφάνιση στο Serial Monitor για debug
+  Serial.print("Sending dump data: ");
+  Serial.println(dumpString);
 
-  counter++;
+  // Αποστολή των δεδομένων μέσω του LoRaModule
+  lora.sendString(dumpString);
 
-  delay(4500);
+  // Αναμονή 5 δευτερολέπτων πριν την επόμενη αποστολή
+  delay(5000);
 }
