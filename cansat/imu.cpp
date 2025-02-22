@@ -13,7 +13,9 @@ int16_t gyaw;
 float lyaw;
 
 // Constructor
-IMU::IMU(){}
+IMU::IMU(bool debug)
+  : debug(debug)
+{}
 
 // Αρχικοποίηση αισθητήρων
 bool IMU::initialize() {
@@ -47,6 +49,8 @@ bool IMU::initialize() {
   lis3mdl.configInterrupt(false, false, false,
                           false, false, false);
   Serial.println("LIS3MDL setup complete");
+
+  randomSeed(analogRead(A0));
 
   return true;
 }
@@ -85,20 +89,41 @@ void IMU::read() {
 
 // Υπολογισμός Yaw
 float IMU::getYaw() {
-  lyaw = fmod(lyaw, 360.0);
-  return lyaw;
+  if (!debug){
+    lyaw = fmod(lyaw, 360.0);
+    return lyaw;
+  }
+  else {
+    int randint = random(0, 720);
+    randint -= 360;
+    return randint;
+  }
 }
 
 // Υπολογισμός Pitch
 float IMU::getPitch() {
+  if (!debug){
     float pitch = gpitch / 131;
     return pitch;
+  }
+  else {
+    int randint = random(0, 720);
+    randint -= 360;
+    return randint;
+  }
 }
 
 // Υπολογισμός Roll
 float IMU::getRoll() {
+  if (!debug){
     float roll = groll / 131;
     return roll;
+  }
+  else {
+    int randint = random(0, 720);
+    randint -= 360;
+    return randint;
+  }
 }
 
 // Επιστροφή Yaw, Roll, Pitch

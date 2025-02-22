@@ -20,7 +20,7 @@ struct PixelCoord {
 class ThermalCamera {
 public:
   // Constructor: default maxSpots=3, range=0..100
-  ThermalCamera();
+  ThermalCamera(bool debug=false);
 
   // Initialize the MLX90640 with specific I2C pins and frequency
   bool begin(uint8_t sdaPin, uint8_t sclPin, uint32_t i2cFreq = 400000);
@@ -54,6 +54,7 @@ private:
 
   // We store the top spots' coordinates in this array
   PixelCoord _foundSpots[768]; // In practice we only use up to _maxSpots.
+  bool debug;
 };
 
 #endif

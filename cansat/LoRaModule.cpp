@@ -20,14 +20,14 @@
     LoRa.setSyncWord(syncWord);
   }
 
-  void LoRaModule::sendString(String message) {
+  void LoRaModule::sendString(String message, int sdCS) {
     // Αποστολή πακέτου LoRa στον δέκτη
     LoRa.beginPacket();
     LoRa.print(message);
     LoRa.endPacket();
   }
 
-  String LoRaModule::receiveString() {
+  String LoRaModule::receiveString(int sdCS) {
     String receivedMessage = "";
     // Προσπάθεια ανάλυσης πακέτου
     int packetSize = LoRa.parsePacket();

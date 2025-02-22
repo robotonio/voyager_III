@@ -1,40 +1,43 @@
 #ifndef GPSMODULE_H
 #define GPSMODULE_H
 
-#include <TinyGPS++.h>
-#include <HardwareSerial.h>
-#include <utility> // Για std::pair
+#include <Arduino.h>
+#include <SoftwareSerial.h>
+#include <TinyGPSPlus.h>
+#include <utility>  // για std::pair
 
 class GPSModule {
-  private:
-    int rxPin;         // RX pin για UART
-    int txPin;         // TX pin για UART
-    int baudRate;      // Ρυθμός baud
-    TinyGPSPlus gps;   // TinyGPS++ αντικείμενο
-    HardwareSerial gpsSerial; // UART Serial για το GPS
-    bool isInitialized; // Κατάσταση αρχικοποίησης
+public:
+  GPSModule(int rxPin, int txPin, int baudRate, bool debug=false);
 
-  public:
-    // Constructor
-    GPSModule(int rxPin, int txPin, int baudRate = 9600);
+  bool initialize();
 
-    // Αρχικοποίηση GPS Module
-    bool initialize();
+  // Βασικές μετρήσεις
+  std::pair<float, float> getCoordinates();
+  float getAltitude();
+  int   getSatellites();
+  float getSpeed();
+  String getTime();
+  void update();
 
-    // Ανάγνωση γεωγραφικών συντεταγμένων
-    std::pair<float, float> getCoordinates();
+private:
+  int rxPin;
+  int txPin;
+  int baudRate;
+  bool isInitialized;
+  bool debug;
+  float centerLat;  
+  float centerLon;
+  float maxOffsetLat;
+  float maxOffsetLon;
+  float currentAltitude;
+  float minAltitude;
 
-    // Ανάγνωση υψομέτρου
-    float getAltitude();
+  // Χρησιμοποιούμε SoftwareSerial για το GPS
+  SoftwareSerial gpsSerial;
 
-    // Ανάγνωση αριθμού δορυφόρων
-    int getSatellites();
-
-    // Ανάγνωση ταχύτητας
-    float getSpeed();
-
-    // Ανάγνωση ώρας (UTC)
-    String getTime();
+  // TinyGPSPlus αντικείμενο για parse NMEA
+  TinyGPSPlus gps;
 };
 
-#endif // GPSMODULE_H
+#endif
