@@ -1,6 +1,5 @@
 import threading
 import time
-import random
 from tasks.task3_interest import get_interest_points
 from flask import Flask, jsonify, render_template
 from dotenv import load_dotenv

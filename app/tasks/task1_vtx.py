@@ -1,14 +1,53 @@
 import cv2
 import time
-import numpy as np
 import random
 import math
 import csv
 import ast
-
+import enum
 from tasks.CanSatData import CanSatData
+from enum import Flag
+from dataclasses import dataclass
 
 MERGE_THRESHOLD = 20  # for merging nearby points (not used in these methods)
+
+
+class DetectionMethod(Flag):
+    COMPUTER_VISION = enum.auto()
+    MACHINE_LEARNING = enum.auto()
+    CANSAT_HOTSPOTS = enum.auto()
+    THE_CANSAT = enum.auto()
+
+
+@dataclass(slots=True)
+class DetectionPoint:
+    latitude: float
+    longitude: float
+    score: float
+    methods: DetectionMethod
+
+
+@dataclass(slots=True)
+class RatedDetectionPoint:
+    detection_point: DetectionPoint
+    rating: int
+
+    @property
+    def latitude(self):
+        return self.detection_point.latitude
+
+    @property
+    def longitude(self):
+        return self.detection_point.longitude
+
+    @property
+    def score(self):
+        return self.detection_point.score
+
+    @property
+    def methods(self):
+        return self.detection_point.methods
+
 
 class VTXProcessor:
     """
@@ -17,17 +56,23 @@ class VTXProcessor:
     utility functions such as converting an image pixel coordinate
     to estimated world GPS coordinates using CanSatData.
     """
-    
-    def __init__(self, camera_index=1, maxspots=20, debug=False):
+
+    cap: cv2.VideoCapture
+    max_spots: int
+    last_image: cv2.typing.MatLike | None
+    last_timestamp: float | None
+    debug: bool
+
+    def __init__(self, camera_index: int = 1, max_spots: int = 20, debug: bool = False):
         """
         Initializes the VTXProcessor.
-        
+
         :param camera_index: The index of the camera (second monitor).
         :param maxspots: Maximum number of interest points to return.
         """
         if not debug:
             self.cap = cv2.VideoCapture(camera_index)
-        self.maxspots = maxspots
+        self.max_spots = max_spots
         self.last_image = None
         self.last_timestamp = None
         self.debug = debug
@@ -35,26 +80,27 @@ class VTXProcessor:
     def read_image(self):
         """
         Captures an image from the secondary monitor.
-        
-        :return: A tuple (image, timestamp) where image is a BGR numpy array and
-                 timestamp is the Unix timestamp (in seconds) when the image was captured.
         """
         if not self.debug:
             ret, frame = self.cap.read()
             if not ret:
-                return None, None
+                return
             self.last_image = frame
         else:
             frame = cv2.imread("static/images/latest.jpg")
             self.last_image = frame
         self.last_timestamp = time.time()
-        return frame, self.last_timestamp
 
-    def image_point_to_world(self, cansat_data, image_point, image_resolution):
+    def image_point_to_world(
+        self,
+        cansat_data: CanSatData,
+        image_point: tuple[int, int],
+        image_resolution: tuple[int, int],
+    ) -> tuple[float, float]:
         """
         Converts a pixel (x, y) from an image to estimated world (GPS) coordinates,
         using a simplified pinhole camera model.
-        
+
         :param cansat_data: A CanSatData object (with altitude, latitude, longitude, pitch, roll, yaw).
         :param image_point: A tuple (x, y) representing pixel coordinates.
         :param image_resolution: A tuple (width, height) of the image in pixels.
@@ -77,23 +123,23 @@ class VTXProcessor:
         yaw = math.radians(cansat_data.yaw)
 
         Rx = [
-            [1, 0, 0],
-            [0, math.cos(roll), -math.sin(roll)],
-            [0, math.sin(roll), math.cos(roll)]
+            [1.0, 0.0, 0.0],
+            [0.0, math.cos(roll), -math.sin(roll)],
+            [0.0, math.sin(roll), math.cos(roll)],
         ]
         Ry = [
-            [math.cos(pitch), 0, math.sin(pitch)],
-            [0, 1, 0],
-            [-math.sin(pitch), 0, math.cos(pitch)]
+            [math.cos(pitch), 0.0, math.sin(pitch)],
+            [0.0, 1.0, 0.0],
+            [-math.sin(pitch), 0.0, math.cos(pitch)],
         ]
         Rz = [
-            [math.cos(yaw), -math.sin(yaw), 0],
-            [math.sin(yaw), math.cos(yaw), 0],
-            [0, 0, 1]
+            [math.cos(yaw), -math.sin(yaw), 0.0],
+            [math.sin(yaw), math.cos(yaw), 0.0],
+            [0.0, 0.0, 1.0],
         ]
 
-        def mat_mult(A, B):
-            result = [[0, 0, 0] for _ in range(3)]
+        def mat_mult(A: list[list[float]], B: list[list[float]]):
+            result = [[0.0, 0.0, 0.0] for _ in range(3)]
             for i in range(3):
                 for j in range(3):
                     for k in range(3):
@@ -106,7 +152,7 @@ class VTXProcessor:
         world_dir = (
             R[0][0] * dir_cam[0] + R[0][1] * dir_cam[1] + R[0][2] * dir_cam[2],
             R[1][0] * dir_cam[0] + R[1][1] * dir_cam[1] + R[1][2] * dir_cam[2],
-            R[2][0] * dir_cam[0] + R[2][1] * dir_cam[1] + R[2][2] * dir_cam[2]
+            R[2][0] * dir_cam[0] + R[2][1] * dir_cam[1] + R[2][2] * dir_cam[2],
         )
 
         Hc = cansat_data.altitude
@@ -126,101 +172,120 @@ class VTXProcessor:
 
         return (new_lat, new_lng)
 
-    def detect_cv_points(self, cansat_data: CanSatData) -> list[dict]:
+    def detect_cv_points(self, cansat_data: CanSatData) -> list[DetectionPoint]:
         """
         Detects preliminary interest points using computer vision techniques,
         then converts their pixel coordinates to world coordinates.
-        
+
         Dummy implementation: uses blob detection.
-        
+
         :param cansat_data: A CanSatData object.
         :return: List of points as dictionaries with keys "lat", "lng", "score", "methods" (set containing "CV").
         """
-        gray = cv2.cvtColor(self.last_image, cv2.COLOR_BGR2GRAY)
-        detector = cv2.SimpleBlobDetector_create()
-        keypoints = detector.detect(gray)
+
+        if self.last_image is None:
+            return []
+
+        points: list[DetectionPoint] = []
 
         gray = cv2.cvtColor(self.last_image, cv2.COLOR_BGR2GRAY)
         blurred = cv2.GaussianBlur(gray, (23, 23), 0)
-        (T, threshInv) = cv2.threshold(blurred, 230, 255,
-            cv2.THRESH_BINARY_INV)
-        final_img = cv2.bitwise_not(threshInv)
-        num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(final_img, connectivity=8)
+        (_, threshholded) = cv2.threshold(blurred, 230, 255, cv2.THRESH_BINARY_INV)
+        final_img = cv2.bitwise_not(threshholded)
+        # num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(
+        #     final_img, connectivity=8
+        # )
+        contours, _ = cv2.findContours(
+            final_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
 
-        # Iterate over each blob (skip label 0, which is the background)
-        for label in range(1, num_labels):
-            # Create a mask for the current blob
-            blob_mask = np.zeros_like(final_img)
-            blob_mask[labels == label] = 255
-            
-            # Retrieve statistics for the blob
-            area = stats[label, cv2.CC_STAT_AREA]
-            x = stats[label, cv2.CC_STAT_LEFT]
-            y = stats[label, cv2.CC_STAT_TOP]
-            w = stats[label, cv2.CC_STAT_WIDTH]
-            h = stats[label, cv2.CC_STAT_HEIGHT]
-            
-            print(f"Blob {label}: Area = {area}, Bounding box = ({x}, {y}, {w}, {h})")
-            
-            # Here you can add any additional processing for each blob
-            # For example, you might want to extract the blob region from the original image:
-            # blob_region = img[y:y+h, x:x+w]
+        def score_from_area(area: float, image_size: tuple[int, int]):
+            def clip(score: float):
+                return max(min(score, 1), 0)
 
-        points = []
-        h, w = self.last_image.shape[:2]
-        image_resolution = (w, h)
-        for kp in keypoints:
-            # for typing purposes
-            kp: cv2.KeyPoint = kp
-            pixel = (int(kp.pt[0]), int(kp.pt[1]))
-            world_coords = self.image_point_to_world(cansat_data, pixel, image_resolution)
-            point = {"lat": world_coords[0],
-                     "lng": world_coords[1],
-                     "score": kp.response,
-                     "methods": {"CV"}}
-            points.append(point)
+            w, h = image_size
+            score = (area) / (w * h)
+            score *= 8192
+            if score > 0.5:
+                return clip(score * 2)
+            elif score > 0.2:
+                return clip(score * 3)
+            elif score > 0.1:
+                return clip(score * 5)
+            elif score > 0.01:
+                return clip(score * 10)
+            else:
+                return clip(score * 30)
+
+        for contour in contours:
+            x, y, _, _ = cv2.boundingRect(contour)
+            h: int = final_img.shape[0]  # pyright: ignore[reportAny]
+            w: int = final_img.shape[1]  # pyright: ignore[reportAny]
+            world_coords = self.image_point_to_world(cansat_data, (x, y), (w, h))
+            area = cv2.contourArea(contour)
+            points.append(
+                DetectionPoint(
+                    latitude=world_coords[0],
+                    longitude=world_coords[1],
+                    score=score_from_area(area, (w, h)),
+                    methods=DetectionMethod.COMPUTER_VISION,
+                )
+            )
+
         return points
 
-    def detect_ml_points(self, cansat_data: CanSatData):
+    def detect_ml_points(self, cansat_data: CanSatData) -> list[DetectionPoint]:
         """
         Detects interest points using machine learning techniques,
         then converts their pixel coordinates to world coordinates.
-        
+
         Dummy implementation: returns a few random points.
-        
+
         :param cansat_data: A CanSatData object.
         :return: List of points as dictionaries with keys "lat", "lng", "score", "methods" (set containing "ML").
         """
-        h, w, _ = self.last_image.shape
+
+        if self.last_image is None:
+            return []
+
+        points: list[DetectionPoint] = []
+
+        shape: tuple[int, ...] = self.last_image.shape  # pyright: ignore[reportAny]
+        h, w, _ = shape
         image_resolution = (w, h)
-        points = []
         num_points = random.randint(5, 10)
         for _ in range(num_points):
             x = random.randint(0, w - 1)
             y = random.randint(0, h - 1)
             score = random.uniform(0.5, 1.0)
-            world_coords = self.image_point_to_world(cansat_data, (x, y), image_resolution)
-            points.append({"lat": world_coords[0],
-                           "lng": world_coords[1],
-                           "score": score,
-                           "methods": {"ML"}})
+            world_coords = self.image_point_to_world(
+                cansat_data, (x, y), image_resolution
+            )
+            points.append(
+                DetectionPoint(
+                    latitude=world_coords[0],
+                    longitude=world_coords[1],
+                    score=score,
+                    methods=DetectionMethod.MACHINE_LEARNING,
+                )
+            )
         return points
 
-    def get_closest_cansat_data(self, image_timestamp, csv_filename):
+    def get_closest_cansat_data(self, image_timestamp: float, csv_filename: str):
         """
         Reads the CSV file containing logged CanSatData and returns the
         CanSatData object whose timestamp is closest to the given image_timestamp.
-        
+
         :param image_timestamp: The Unix timestamp (in seconds) when the image was captured.
         :param csv_filename: The path to the CSV file containing telemetry data.
         :return: A CanSatData object with the closest timestamp, or None if not found.
         """
         closest_data = None
-        smallest_diff = float('inf')
+        smallest_diff = float("inf")
         try:
             with open(csv_filename, "r", newline="", encoding="utf-8") as f:
                 reader = csv.reader(f)
-                headers = next(reader)  # Skip header row
+                _ = next(reader)  # Skip header row
                 # Expected headers: altitude,temperature,pressure,gps_time,latitude,longitude,
                 # pitch,roll,yaw,is_vtx_on,hotspots,timestamp
                 for row in reader:
@@ -244,44 +309,58 @@ class VTXProcessor:
                     if diff < smallest_diff:
                         smallest_diff = diff
                         # Create a new CanSatData object (assume its __init__ takes the fields in order)
-                        closest_data = CanSatData(altitude, temperature, pressure, gps_time,
-                                                   latitude, longitude, pitch, roll, yaw,
-                                                   is_vtx_on, hotspots, timestamp)
+                        closest_data = CanSatData(
+                            altitude,
+                            temperature,
+                            pressure,
+                            gps_time,
+                            latitude,
+                            longitude,
+                            pitch,
+                            roll,
+                            yaw,
+                            is_vtx_on,
+                            hotspots,
+                            timestamp,
+                        )
         except FileNotFoundError:
             print("CSV file not found:", csv_filename)
             return None
 
         return closest_data
 
-    def merge_points(self, points_list: list[dict]):
+    def merge_points(self, points_list: list[DetectionPoint]):
         """
         Merges nearby points from a list based on a dummy distance threshold.
         For simplicity, this dummy implementation uses a threshold in degrees.
         :param points_list: List of point dictionaries (each with "lat", "lng", "score", "methods").
         :return: A new list of merged points.
         """
-        merged = []
+        merged: list[DetectionPoint] = []
         threshold = 0.0001  # Dummy threshold in degrees (adjust as needed)
         for pt in points_list:
             found = False
             for mpt in merged:
-                dist = math.sqrt((pt["lat"] - mpt["lat"])**2 + (pt["lng"] - mpt["lng"])**2)
+                dist = math.sqrt(
+                    (pt.latitude - mpt.latitude) ** 2
+                    + (pt.longitude - mpt.longitude) ** 2
+                )
                 if dist < threshold:
-                    mpt["lat"] = (mpt["lat"] + pt["lat"]) / 2
-                    mpt["lng"] = (mpt["lng"] + pt["lng"]) / 2
-                    mpt["score"] = max(mpt["score"], pt["score"])
-                    mpt["methods"] = mpt["methods"].union(pt["methods"])
+                    mpt.latitude = (mpt.latitude + pt.latitude) / 2
+                    mpt.longitude = (mpt.longitude + pt.longitude) / 2
+                    mpt.score = max(mpt.score, pt.score)
+                    mpt.methods = pt.methods | mpt.methods
                     found = True
                     break
             if not found:
                 merged.append(pt)
         return merged
 
-    def assign_rank(self, methods_set):
+    def assign_rank(self, methods: DetectionMethod):
         """
         Assigns a rank based on the detection methods used.
         Lower rank indicates higher priority.
-        
+
         Ranking:
           1. {"CV", "ML", "CH"} -> rank 1
           2. {"ML", "CH"}      -> rank 2
@@ -293,28 +372,47 @@ class VTXProcessor:
         :param methods_set: A set of method strings.
         :return: An integer rank.
         """
-        if methods_set == {"CV", "ML", "CH"}:
+        if (
+            methods
+            == DetectionMethod.COMPUTER_VISION
+            | DetectionMethod.MACHINE_LEARNING
+            | DetectionMethod.CANSAT_HOTSPOTS
+        ):
             return 1
-        elif methods_set == {"ML", "CH"}:
+        elif (
+            methods
+            == DetectionMethod.MACHINE_LEARNING | DetectionMethod.CANSAT_HOTSPOTS
+        ):
             return 2
-        elif methods_set == {"CV", "CH"}:
+        elif (
+            methods == DetectionMethod.COMPUTER_VISION | DetectionMethod.CANSAT_HOTSPOTS
+        ):
             return 3
-        elif methods_set == {"CV", "ML"}:
+        elif (
+            methods
+            == DetectionMethod.COMPUTER_VISION | DetectionMethod.MACHINE_LEARNING
+        ):
             return 4
-        elif methods_set == {"ML"}:
+        elif methods == DetectionMethod.MACHINE_LEARNING:
             return 5
-        elif methods_set == {"CV"}:
+        elif methods == DetectionMethod.COMPUTER_VISION:
             return 6
-        elif methods_set == {"CH"}:
+        elif methods == DetectionMethod.CANSAT_HOTSPOTS:
             return 7
         else:
             return 100  # Fallback rank for unexpected combinations
 
-    def score_and_sort_points(self, cv_points, ml_points, ch_points, cansat_data) -> list[dict]:
+    def score_and_sort_points(
+        self,
+        cv_points: list[DetectionPoint],
+        ml_points: list[DetectionPoint],
+        ch_points: list[DetectionPoint],
+        cansat_data: CanSatData,
+    ) -> list[RatedDetectionPoint]:
         """
         Combines the interest points detected via CV, ML, and the hotspots (CH) from the closest
         CanSatData, then ranks and sorts them from most important to least important.
-        
+
         The first point in the returned list will be the fixed point corresponding to the
         CanSat's location at capture time (i.e., cansat_data.latitude, cansat_data.longitude).
         The remaining points are ranked based on:
@@ -325,7 +423,7 @@ class VTXProcessor:
           5. Points detected by ML only -> rank 5
           6. Points detected by CV only -> rank 6
           7. Points detected by CH only -> rank 7
-          
+
         :param cv_points: List of points from CV.
         :param ml_points: List of points from ML.
         :param ch_points: List of points from CanSat hotspots (CH).
@@ -334,71 +432,55 @@ class VTXProcessor:
                  with keys "lat", "lng", "score", "methods", and "rating".
         """
         # Fixed point: the CanSat's location.
-        fixed_point = {
-            "lat": cansat_data.latitude,
-            "lng": cansat_data.longitude,
-            "score": 1.0,
-            "methods": {"CANSAT"},
-            "rating": 0
-        }
-        
-        # Combine all detected points.
+        fixed_point = RatedDetectionPoint(
+            DetectionPoint(
+                latitude=cansat_data.latitude,
+                longitude=cansat_data.longitude,
+                score=1.0,
+                methods=DetectionMethod.THE_CANSAT,
+            ),
+            0,
+        )
+
         all_points = cv_points + ml_points + ch_points
-        
-        # Merge points that are very close.
         merged_points = self.merge_points(all_points)
-        
-        # Assign a rating to each merged point based on the detection methods.
+
+        rated_points: list[RatedDetectionPoint] = []
         for pt in merged_points:
-            pt["rating"] = self.assign_rank(pt["methods"])
-        
+            rated_points.append(RatedDetectionPoint(pt, self.assign_rank(pt.methods)))
+
         # Sort the merged points by rating (ascending; lower is better) then by score (descending).
-        sorted_points = sorted(merged_points, key=lambda p: (p["rating"], -p["score"]))
-        
-        # Limit to self.maxspots - 1 (since fixed point is added as the first element).
-        sorted_points = sorted_points[:max(0, self.maxspots - 1)]
-        
-        # Prepend the fixed CanSat location as the first point.
+        sorted_points = sorted(rated_points, key=lambda p: (p.rating, -p.score))
+        sorted_points = sorted_points[: max(0, self.max_spots - 1)]
+
         final_points = [fixed_point] + sorted_points
+
         return final_points
 
-def hotspots_to_points(hotspots):
-    return [{"lat": lat, "lng": lng, "score": 1.0, "methods": {"CH"}} for lat, lng in hotspots]
 
 # Example usage for testing:
 def main():
-    # Create an instance of VTXProcessor.
-    vtx_processor = VTXProcessor(camera_index=1, maxspots=50, debug=True)
-    
-    # For testing, we create a dummy image (1280x720) and a dummy CanSatData object.
-    dummy_image = np.zeros((720, 1280, 3), dtype=np.uint8)
-    
-    class DummyCanSatData:
-        def __init__(self):
-            self.altitude = 500.0  # meters
-            self.latitude = 37.9838
-            self.longitude = 23.7275
-            self.pitch = 5.0       # degrees
-            self.roll = 3.0        # degrees
-            self.yaw = 10.0        # degrees
-    
+    vtx_processor = VTXProcessor(camera_index=1, max_spots=50, debug=True)
+
     dummy_data = CanSatData.create_dump()
-    
+
     vtx_processor.read_image()
-    # Generate dummy points from CV, ML, and CH.
     cv_points = vtx_processor.detect_cv_points(dummy_data)
     ml_points = vtx_processor.detect_ml_points(dummy_data)
-    # For CH, we simulate using the CanSat's hotspots.
-    # Let's assume dummy_data has a hotspots attribute for testing.
-    dummy_data.hotspots = [(37.9840, 23.7276), (37.9841, 23.7277)]
-    # ch_points = []  # We'll use get_cansat_hotspots method.
-    # ch_points = vtx_processor.get_cansat_hotspots(dummy_data)
-    # ^ get_cansat_hotspots doesn't exist??
-    ch_points = hotspots_to_points(dummy_data.hotspots)
+    ch_points = [
+        DetectionPoint(
+            latitude, longitude, score=1, methods=DetectionMethod.CANSAT_HOTSPOTS
+        )
+        for latitude, longitude in dummy_data.hotspots
+    ]
 
-    final_points = vtx_processor.score_and_sort_points(cv_points, ml_points, ch_points, dummy_data)
-    
+    final_points = vtx_processor.score_and_sort_points(
+        cv_points, ml_points, ch_points, dummy_data
+    )
+
     print("Final sorted interest points (with ratings):")
     for pt in final_points:
-        print(f"Coordinates: ({pt['lat']:.6f}, {pt['lng']:.6f}), Score: {pt['score']:.2f}, "
-              f"Methods: {pt['methods']}, Rating: {pt['rating']}")
+        print(
+            f"Coordinates: ({pt.latitude:.6f}, {pt.longitude:.6f}), Score: {pt.score:.2f}, "
+            + f"Methods: {pt.methods}, Rating: {pt.rating}"
+        )

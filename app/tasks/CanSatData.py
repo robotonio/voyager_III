@@ -1,6 +1,11 @@
 import time
 import random
+from dataclasses import dataclass, field
 
+type Hotspot = tuple[float, float]
+
+
+@dataclass(slots=True)
 class CanSatData:
     """
     Class representing a telemetry packet for the CanSat.
@@ -19,45 +24,39 @@ class CanSatData:
       - timestamp (float) time the data was read (in seconds, e.g. Unix timestamp)
     """
 
-    def __init__(self, altitude=0.0, temperature=0.0, pressure=0.0,
-                 gps_time="00:00:00", latitude=0.0, longitude=0.0,
-                 pitch=0.0, roll=0.0, yaw=0.0, is_vtx_on=0, hotspots=None,
-                 timestamp=0.0):
-        if hotspots is None:
-            hotspots = []
-        self.altitude = altitude
-        self.temperature = temperature
-        self.pressure = pressure
-        self.gps_time = gps_time  # Time from GPS in "HH:MM:SS"
-        self.latitude = latitude
-        self.longitude = longitude
-        self.pitch = pitch
-        self.roll = roll
-        self.yaw = yaw
-        self.is_vtx_on = is_vtx_on
-        self.hotspots = hotspots
-        self.timestamp = timestamp  # Time (in seconds) when the data was read
+    altitude: float = 0.0
+    temperature: float = 0.0
+    pressure: float = 0.0
+    gps_time: str = "00:00:00"
+    latitude: float = 0.0
+    longitude: float = 0.0
+    pitch: float = 0.0
+    roll: float = 0.0
+    yaw: float = 0.0
+    is_vtx_on: int = 0
+    hotspots: list[Hotspot] = field(default_factory=lambda: [])
+    timestamp: float = 0.0
 
     @staticmethod
-    def parse_from_string(data_str):
+    def parse_from_string(data_str: str):
         """
         Parses a telemetry string in the format:
         #altitude,temperature,pressure,gps_time,latitude,longitude,pitch,roll,yaw,is_vtx_on,
         hotspot1_lat,hotspot1_lng,...[,timestamp]#
-        
+
         Example with timestamp:
         #150.5,25.3,1013.2,12:34:56,37.9838,23.7275,10.5,5.2,2.0,1,37.9839,23.7276,37.984,23.7277,1619191234.567#
-        
+
         If no timestamp is provided, timestamp is set to 0.
         Returns a CanSatData object or None if parsing fails.
         """
         data_str = data_str.strip()
-        if data_str.startswith('#') and data_str.endswith('#'):
+        if data_str.startswith("#") and data_str.endswith("#"):
             data_str = data_str[1:-1].strip()
         else:
             return None
 
-        parts = data_str.split(',')
+        parts = data_str.split(",")
         # We expect at least 10 fields: altitude, temperature, pressure, gps_time, latitude,
         # longitude, pitch, roll, yaw, is_vtx_on
         if len(parts) < 10:
@@ -87,10 +86,10 @@ class CanSatData:
                 timestamp = 0.0
                 hotspot_parts = parts[10:]
 
-            hotspots = []
+            hotspots: list[Hotspot] = []
             for i in range(0, len(hotspot_parts), 2):
                 lat_hot = float(hotspot_parts[i])
-                lng_hot = float(hotspot_parts[i+1])
+                lng_hot = float(hotspot_parts[i + 1])
                 hotspots.append((lat_hot, lng_hot))
 
             return CanSatData(
@@ -105,7 +104,7 @@ class CanSatData:
                 yaw=yaw,
                 is_vtx_on=is_vtx_on,
                 hotspots=hotspots,
-                timestamp=timestamp
+                timestamp=timestamp,
             )
         except (ValueError, IndexError):
             return None
@@ -116,8 +115,8 @@ class CanSatData:
         #altitude,temperature,pressure,gps_time,latitude,longitude,pitch,roll,yaw,is_vtx_on,
         hotspot1_lat,hotspot1_lng,...,timestamp#
         """
-        hotspots_str = []
-        for (lat_hot, lng_hot) in self.hotspots:
+        hotspots_str: list[str] = []
+        for lat_hot, lng_hot in self.hotspots:
             hotspots_str.append(f"{lat_hot},{lng_hot}")
         hotspots_joined = ",".join(hotspots_str)
         main_str = (
@@ -139,7 +138,7 @@ class CanSatData:
             final_str = f"{main_str},{self.timestamp}"
         return f"#{final_str}#"
 
-    def update_from_string(self, data_str):
+    def update_from_string(self, data_str: str):
         """
         Updates the properties of the object using a telemetry string in the above format.
         """
@@ -220,11 +219,11 @@ class CanSatData:
         Creates a dummy CanSatData object with random values within logical ranges for a CanSat
         falling from around 1000 meters, but with GPS coordinates restricted to the municipality
         of Korydallos in Attica.
-        
+
         Telemetry data format now:
         #altitude,temperature,pressure,gps_time,latitude,longitude,pitch,roll,yaw,is_vtx_on,
         hotspot...,timestamp#
-        
+
         - altitude: between 100 and 1000 meters
         - temperature: between 20 and 35 °C
         - pressure: between 950 and 1020 hPa
@@ -246,18 +245,18 @@ class CanSatData:
         minute = random.randint(0, 59)
         second = random.randint(0, 59)
         gps_time = f"{hour:02d}:{minute:02d}:{second:02d}"
-        
+
         # Restrict coordinates to the approximate area of Korydallos, Attica.
         latitude = round(random.uniform(37.93, 37.95), 4)
         longitude = round(random.uniform(23.68, 23.72), 4)
-        
+
         pitch = round(random.uniform(0, 20), 1)
         roll = round(random.uniform(0, 15), 1)
         yaw = round(random.uniform(0, 10), 1)
         is_vtx_on = 1 if random.random() < 0.9 else 0
 
         num_hotspots = random.randint(1, 3)
-        hotspots = []
+        hotspots: list[Hotspot] = []
         for _ in range(num_hotspots):
             h_lat = round(latitude + random.uniform(-0.001, 0.001), 4)
             h_lng = round(longitude + random.uniform(-0.001, 0.001), 4)
@@ -266,8 +265,18 @@ class CanSatData:
         timestamp = time.time()  # Current time in seconds
 
         return CanSatData(
-            altitude, temperature, pressure, gps_time, latitude, longitude,
-            pitch, roll, yaw, is_vtx_on, hotspots, timestamp
+            altitude,
+            temperature,
+            pressure,
+            gps_time,
+            latitude,
+            longitude,
+            pitch,
+            roll,
+            yaw,
+            is_vtx_on,
+            hotspots,
+            timestamp,
         )
 
 
