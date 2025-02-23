@@ -1,0 +1,26 @@
+RGB	
+  RED	11
+	GEEN	10
+	BLUE	8
+Buzzer		47
+BMP280	I2C	SDA 1 | SCL 2
+MPU6050	I2C	SDA 1 | SCL 2
+LIS	I2C SDA 1 | SCL 2	
+Thermal	I2C SDA 1 | SCL 2	
+GPS NEO-8	
+  TX module -> RX	44 
+  RX module -> TX	43
+LoRa RFM98	
+  RST	6
+	NSS	5
+	DIO0	4
+	SCL	17
+	MOSI	15
+	MISO	16
+Mosfet	?
+SD Module	
+  CS	?
+	SCL	17
+	MOSI	15
+	MISO	16
+		
