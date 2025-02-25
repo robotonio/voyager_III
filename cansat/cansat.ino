@@ -1,99 +1,39 @@
-// #include <SPI.h>
-// #include <LoRa.h>
-
-// //define the pins used by the transceiver module
-// #define ss 3
-// #define rst 7
-// #define dio0 38
-
-// int counter = 0;
-
-// void setup() {
-//   //initialize Serial Monitor
-//   Serial.begin(115200);
-//   while (!Serial);
-//   Serial.println("LoRa Sender");
-
-//   //setup LoRa transceiver module
-//   LoRa.setPins(ss, rst, dio0);
-  
-//   //replace the LoRa.begin(---E-) argument with your location's frequency 
-//   //433E6 for Asia
-//   //868E6 for Europe
-//   //915E6 for North America
-//   while (!LoRa.begin(433E6)) {
-//     Serial.println(".");
-//     delay(500);
-//   }
-//    // Change sync word (0xF3) to match the receiver
-//   // The sync word assures you don't get LoRa messages from other LoRa transceivers
-//   // ranges from 0-0xFF
-//   LoRa.setSyncWord(0xF3);
-//   Serial.println("LoRa Initializing OK!");
-// }
-
-// void loop() {
-//   Serial.print("Sending packet: ");
-//   Serial.println(counter);
-
-//   //Send LoRa packet to receiver
-//   LoRa.beginPacket();
-//   LoRa.print("hello ");
-//   LoRa.print(counter);
-//   LoRa.endPacket();
-
-//   counter++;
-
-//   delay(5000);
-// }
-
 #include <SPI.h>
 #include <LoRa.h>
+#include "LoRaModule.h"
+#include "CanSatData.h"
 
-//define the pins used by the transceiver module
-#define ss 5
-#define rst 27
-#define dio0 2
+// Ορισμός των pins για το LoRa module
+#define SS_PIN 5
+#define RST_PIN 6
+#define DIO0_PIN 4
+
+// Δημιουργία αντικειμένου LoRaModule με συχνότητα 868 MHz και sync word 0xF3
+LoRaModule lora(SS_PIN, RST_PIN, DIO0_PIN, 433E6, 0xF3);
 
 void setup() {
-  //initialize Serial Monitor
   Serial.begin(115200);
   while (!Serial);
-  Serial.println("LoRa Receiver");
-
-  //setup LoRa transceiver module
-  LoRa.setPins(ss, rst, dio0);
+  Serial.println("LoRa Sender - Sending dump data using CanSatData");
   
-  //replace the LoRa.begin(---E-) argument with your location's frequency 
-  //433E6 for Asia
-  //868E6 for Europe
-  //915E6 for North America
-  while (!LoRa.begin(433E6)) {
-    Serial.println(".");
-    delay(500);
-  }
-   // Change sync word (0xF3) to match the receiver
-  // The sync word assures you don't get LoRa messages from other LoRa transceivers
-  // ranges from 0-0xFF
-  LoRa.setSyncWord(0xF3);
-  Serial.println("LoRa Initializing OK!");
+  // Εκκίνηση του LoRa module μέσω της κλάσης
+  lora.begin();
+  Serial.println("LoRa Initialized!");
 }
 
 void loop() {
-  // try to parse packet
-  int packetSize = LoRa.parsePacket();
-  if (packetSize) {
-    // received a packet
-    Serial.print("Received packet '");
+  // Δημιουργία dummy δεδομένων μέσω της CanSatData
+  CanSatData dumpData = CanSatData::createDump();
+  // Μετατροπή των δεδομένων σε string (σε μορφή CSV περικλεισμένη από #)
+  String dumpString = dumpData.toString();
 
-    // read packet
-    while (LoRa.available()) {
-      String LoRaData = LoRa.readString();
-      Serial.print(LoRaData); 
-    }
+  // Εμφάνιση στο Serial Monitor για debug
+  Serial.print("Sending dump data: ");
+  Serial.println(dumpString);
 
-    // print RSSI of packet
-    Serial.print("' with RSSI ");
-    Serial.println(LoRa.packetRssi());
-  }
+  // Αποστολή των δεδομένων μέσω του LoRaModule
+  lora.sendString(dumpString);
+
+  // Αναμονή 5 δευτερολέπτων πριν την επόμενη αποστολή
+  delay(5000);
 }

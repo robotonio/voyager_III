@@ -9,33 +9,35 @@ LoRaModule::LoRaModule(int ssPin, int rstPin, int dio0Pin, long freq, int sync) 
 }
 
 void LoRaModule::begin() {
-  // Ρύθμιση του LoRa transceiver module
+  // Ρύθμιση των pins του LoRa module
   LoRa.setPins(ss, rst, dio0);
   
-  // Αντικαταστήστε το LoRa.begin(---E-) με τη συχνότητα της περιοχής σας
+  // Εκκίνηση με τη σωστή συχνότητα (π.χ. 868E6 για Ευρώπη)
   while (!LoRa.begin(frequency)) {
     delay(500);
   }
-  // Αλλαγή του sync word για να ταιριάζει με τον δέκτη
+  // Ορισμός του sync word ώστε να ταιριάζει με τον αποστολέα
   LoRa.setSyncWord(syncWord);
 }
 
 void LoRaModule::sendString(String message) {
-  // Αποστολή πακέτου LoRa στον δέκτη
   LoRa.beginPacket();
   LoRa.print(message);
   LoRa.endPacket();
 }
 
-String LoRaModule::receiveString() {
-  String receivedMessage = "";
-  // Προσπάθεια ανάλυσης πακέτου
+LoRaData LoRaModule::receivePacket() {
+  LoRaData data;
+  data.message = "";
+  data.rssi = 0;
+  
+  // Έλεγχος για ληφθέν πακέτο
   int packetSize = LoRa.parsePacket();
   if (packetSize) {
-    // Λήψη πακέτου
     while (LoRa.available()) {
-      receivedMessage += (char)LoRa.read();
+      data.message += (char)LoRa.read();
     }
+    data.rssi = LoRa.packetRssi();
   }
-  return receivedMessage;
+  return data;
 }

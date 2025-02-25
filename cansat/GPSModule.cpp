@@ -1,33 +1,60 @@
 #include "GPSModule.h"
 
-// Constructor
-GPSModule::GPSModule(int rxPin, int txPin, int baudRate)
-    : rxPin(rxPin), txPin(txPin), baudRate(baudRate), gpsSerial(1), isInitialized(false) {}
+GPSModule::GPSModule(int rxPin, int txPin, int baudRate, bool debug)
+    : rxPin(rxPin), txPin(txPin), baudRate(baudRate),
+      isInitialized(false), debug(debug), centerLat(37.98), centerLon(23.35), maxOffsetLat(0.0009), maxOffsetLon(0.00114),
+      currentAltitude(1000.0), minAltitude(0.21),
+      // Αρχικοποιούμε το SoftwareSerial με (rxPin, txPin)
+      gpsSerial(rxPin, txPin)
+{
+}
 
 // Αρχικοποίηση GPS Module
 bool GPSModule::initialize() {
-    gpsSerial.begin(baudRate, SERIAL_8N1, rxPin, txPin); // Αρχικοποίηση UART
-    isInitialized = true; // Θεωρούμε επιτυχή αρχικοποίηση αν η σειριακή επικοινωνία ξεκινήσει
+    // Ξεκινάμε το SoftwareSerial στη baudRate του GPS
+    gpsSerial.begin(baudRate);
+
+    // Θεωρούμε επιτυχή αρχικοποίηση αν ανοίξει η σειριακή
+    isInitialized = true;
+    randomSeed(analogRead(A0));
     return isInitialized;
 }
 
 // Ανάγνωση γεωγραφικών συντεταγμένων
 std::pair<float, float> GPSModule::getCoordinates() {
-    if (!isInitialized) return {0.0, 0.0}; // Επιστροφή μηδενικών αν το GPS δεν έχει αρχικοποιηθεί
+  if (!debug){ 
+    if (!isInitialized) {
+        return {0.0f, 0.0f};
+    }
 
+    // Διαβάζουμε όσους χαρακτήρες είναι διαθέσιμοι από το GPS
     while (gpsSerial.available() > 0) {
         gps.encode(gpsSerial.read());
     }
 
+    // Αν η τοποθεσία έχει ενημερωθεί, επιστρέφουμε lat/lng
     if (gps.location.isUpdated()) {
-        return {gps.location.lat(), gps.location.lng()};
+        return { gps.location.lat(), gps.location.lng() };
     }
-    return {0.0, 0.0}; // Επιστροφή μηδενικών αν δεν υπάρχουν δεδομένα
+    // Αλλιώς επιστροφή μηδενικών
+    return {0.0f, 0.0f};
+  }
+  else{
+    // Παράγουμε τυχαίο offset στο εύρος [-1..+1], μετά το πολλαπλασιάζουμε με maxOffsetLat
+    float offsetLat = (random(-1000, 1001) / 1000.0) * maxOffsetLat;
+    float offsetLon = (random(-1000, 1001) / 1000.0) * maxOffsetLon;
+
+    // Υπολογίζουμε τις νέες συντεταγμένες
+    float newLat = centerLat + offsetLat;
+    float newLon = centerLon + offsetLon;
+    return {newLat, newLon};
+  }
 }
 
 // Ανάγνωση υψομέτρου
 float GPSModule::getAltitude() {
-    if (!isInitialized) return 0.0; // Επιστροφή μηδενικού αν το GPS δεν έχει αρχικοποιηθεί
+  if (!debug){
+    if (!isInitialized) return 0.0f;
 
     while (gpsSerial.available() > 0) {
         gps.encode(gpsSerial.read());
@@ -36,34 +63,53 @@ float GPSModule::getAltitude() {
     if (gps.altitude.isUpdated()) {
         return gps.altitude.meters();
     }
-    return 0.0; // Επιστροφή μηδενικού αν δεν υπάρχουν δεδομένα
+    return 0.0f;
+  }
+  else {
+    if (currentAltitude > minAltitude){
+      float randomChange = (random(0, 2001) / 1000.0) - 1.0;
+      currentAltitude += randomChange - 10;
+    }
+    if (currentAltitude < minAltitude) currentAltitude = minAltitude;
+    return currentAltitude;
+  }
 }
 
 // Ανάγνωση αριθμού δορυφόρων
 int GPSModule::getSatellites() {
-    if (!isInitialized) return 0; // Επιστροφή μηδενικού αν το GPS δεν έχει αρχικοποιηθεί
+  if (!debug){
+    if (!isInitialized) return 0;
 
     while (gpsSerial.available() > 0) {
         gps.encode(gpsSerial.read());
     }
 
     return gps.satellites.value();
+  }
+  return 13;
 }
 
 // Ανάγνωση ταχύτητας
 float GPSModule::getSpeed() {
-    if (!isInitialized) return 0.0; // Επιστροφή μηδενικού αν το GPS δεν έχει αρχικοποιηθεί
+  if (!debug){
+    if (!isInitialized) return 0.0f;
 
     while (gpsSerial.available() > 0) {
         gps.encode(gpsSerial.read());
     }
 
     return gps.speed.kmph();
+  }
+  else {
+    float randomChange = (random(0, 2001) / 1000.0) - 1.0;
+    return 10.0 + randomChange;
+  }
 }
 
 // Ανάγνωση ώρας (UTC)
 String GPSModule::getTime() {
-    if (!isInitialized) return "00:00:00"; // Επιστροφή μηδενικής ώρας αν το GPS δεν έχει αρχικοποιηθεί
+  if (!debug){
+    if (!isInitialized) return "00:00:00";
 
     while (gpsSerial.available() > 0) {
         gps.encode(gpsSerial.read());
@@ -71,8 +117,20 @@ String GPSModule::getTime() {
 
     if (gps.time.isValid()) {
         char timeBuffer[16];
-        sprintf(timeBuffer, "%02d:%02d:%02d", gps.time.hour(), gps.time.minute(), gps.time.second());
+        sprintf(timeBuffer, "%02d:%02d:%02d",
+                gps.time.hour(),
+                gps.time.minute(),
+                gps.time.second());
         return String(timeBuffer);
     }
-    return "00:00:00"; // Επιστροφή μηδενικής ώρας αν δεν υπάρχουν δεδομένα
+    return "00:00:00";
+  }
+  return "11:53:45";
+}
+
+void GPSModule::update() {
+  if (!isInitialized) return;
+  while (gpsSerial.available() > 0) {
+    gps.encode(gpsSerial.read());
+  }
 }
