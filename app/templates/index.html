@@ -1,85 +1,174 @@
 <!DOCTYPE html>
-<html>
+<html lang="el">
 <head>
   <meta charset="UTF-8">
-  <title>Χάρτης και Εικόνα σε Μία Σελίδα</title>
-  <!-- Ρυθμίζει το viewport για κινητά -->
+  <title>S&R Dashboard: Χάρτης και Εικόνα</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
+  <!-- Importing fonts: Roboto for body text and Oswald for bold headings -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:400,700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Oswald:400,700&display=swap">
   <style>
-    /* Δομή της σελίδας */
+    :root {
+      --bg-color: #121212;
+      --primary-color: #1a1a1a;
+      --accent-color: #e53935; /* Red accent; change to #FFEB3B for yellow or #4CAF50 for green */
+      --text-color: #E0E0E0;
+      --header-text-color: #ffffff;
+      --shadow-color: rgba(0, 0, 0, 0.7);
+    }
+    
+    /* Body with subtle diagonal texture for a rugged feel */
     body {
       margin: 0;
-      padding: 0;
-      font-family: sans-serif;
+      padding: 1rem;
+      font-family: 'Roboto', sans-serif;
+      background: var(--bg-color);
+      color: var(--text-color);
+      background-image: repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 10px,
+        rgba(255,255,255,0.02) 10px,
+        rgba(255,255,255,0.02) 20px
+      );
     }
-
-    /* Το πάνω μέρος με το χάρτη */
+    
+    /* Header styled for urgency and clarity */
+    header {
+      background: linear-gradient(135deg, var(--accent-color), #FFEB3B); /* Red to yellow gradient */
+      padding: 1.5rem;
+      text-align: center;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px var(--shadow-color);
+      margin-bottom: 1.5rem;
+      border: 2px solid var(--accent-color);
+    }
+    
+    header h1 {
+      font-family: 'Oswald', sans-serif;
+      font-size: 2.5rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+    }
+    
+    header p {
+      font-size: 1rem;
+      margin-top: 0.5rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    
+    /* Map container with bold borders and shadows */
     #map {
       width: 100%;
-      height: 50vh; /* Μπορείς να προσαρμόσεις το ύψος όπως θέλεις */
+      height: 50vh;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px var(--shadow-color);
+      margin-bottom: 1.5rem;
+      border: 2px solid var(--accent-color);
     }
-
-    /* Το κάτω μέρος με την εικόνα */
+    
+    /* Image container styled similarly for consistency */
     #image-container {
-      width: 100%;
-      text-align: center; /* Κεντράρει την εικόνα οριζόντια */
+      width: 90%;
+      max-width: 800px;
+      margin: 0 auto 2rem auto;
+      background-color: var(--primary-color);
+      padding: 1rem;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px var(--shadow-color);
+      text-align: center;
+      border: 2px solid var(--accent-color);
     }
-
-    #vtx-image {
-      max-width: 100%; /* Κάνει την εικόνα responsive */
+    
+    #image-container img {
+      width: 100%;
       height: auto;
+      border-radius: 4px;
+    }
+    
+    /* Responsive adjustments for smaller devices */
+    @media (max-width: 600px) {
+      header h1 {
+        font-size: 2rem;
+      }
+      #map {
+        height: 40vh;
+      }
     }
   </style>
 </head>
 <body>
-  <h1>Ενιαία Σελίδα: Χάρτης & Εικόνα</h1>
+  <header>
+    <h1>S&R Dashboard</h1>
+    <p>Χάρτης & Εικόνα</p>
+  </header>
   
-  <!-- Χώρος για τον χάρτη -->
+  <!-- Map Container -->
   <div id="map"></div>
   
-  <!-- Χώρος για την εικόνα -->
+  <!-- Image Container -->
   <div id="image-container">
-    <img src="{{ url_for('static', filename='images/latest.jpg') }}" alt="VTX Image" id="vtx-image" style="max-width: 100%; height: auto;">
+    <img src="../static/images/latest.jpg" alt="VTX Image" id="vtx-image">
   </div>
-
-  <!-- Φόρτωση του Google Maps API (αντικατέστησε το YOUR_API_KEY με το δικό σου API key) -->
-  <script src="https://maps.googleapis.com/maps/api/js?key={{ google_api_key }}"></script>
-
-
+  
+  <!-- Google Maps API -->
+  <script src="https://maps.googleapis.com/maps/api/js?key={ { google_api_key }}"></script>
   <script>
     let map;
     let markers = [];
-
+    
     function initMap() {
-      // Δημιουργούμε τον χάρτη
+      // Check if geolocation is supported
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const userCoords = {
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+            };
+            
+            // Initialize the map with user's coordinates
+            map = new google.maps.Map(document.getElementById('map'), {
+              zoom: 6,
+              center: userCoords,
+            });
+            
+            updatePoints();
+            setInterval(updatePoints, 5000);
+          },
+          (error) => {
+            console.error("Geolocation error:", error);
+            // Fallback to default coordinates (e.g., Athens)
+            initializeMapFallback();
+          }
+        );
+      } else {
+        // If geolocation isn't supported, use fallback
+        initializeMapFallback();
+      }
+    }
+    
+    function initializeMapFallback() {
       map = new google.maps.Map(document.getElementById('map'), {
         zoom: 6,
-        center: { lat: 37.9838, lng: 23.7275 }
+        center: { lat: 37.9838, lng: 23.7275 },
       });
-      
-      // Φορτώνουμε τα σημεία ενδιαφέροντος αρχικά
       updatePoints();
-      
-      // Κάθε 5 δευτερόλεπτα κάνουμε update
       setInterval(updatePoints, 5000);
     }
-
+    
     function updatePoints() {
       fetch('/points')
         .then(response => response.json())
         .then(data => {
-          // Αφαιρούμε τους παλιούς markers
           markers.forEach(marker => marker.setMap(null));
           markers = [];
-          
-          // Φτιάχνουμε ένα LatLngBounds για αυτόματο zoom
           let bounds = new google.maps.LatLngBounds();
-
-          // Ορισμός εικονιδίων: ο πρώτος marker ως μπλε (π.χ. arrow) και τα υπόλοιπα κόκκινα
           const blueIcon = "http://maps.google.com/mapfiles/ms/icons/blue-dot.png";
           const redIcon = "http://maps.google.com/mapfiles/ms/icons/red-dot.png";
-
           data.forEach((point, index) => {
             let marker = new google.maps.Marker({
               position: { lat: point.lat, lng: point.lng },
@@ -90,17 +179,15 @@
             markers.push(marker);
             bounds.extend(marker.getPosition());
           });
-
-          // Αυτόματο zoom ώστε να περιλαμβάνονται όλα τα markers
           if (data.length > 0) {
             map.fitBounds(bounds);
           }
         })
-        .catch(error => console.error("Σφάλμα στην ανάκτηση των σημείων:", error));
-    }
-
-    // Όταν φορτώσει η σελίδα, ξεκινάμε τον χάρτη
+        .catch(error => console.error("Error fetching points:", error));
+     }
+    
     window.onload = initMap;
   </script>
+  
 </body>
 </html>
