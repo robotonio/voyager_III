@@ -4,7 +4,7 @@
 #include <LiquidCrystal_I2C.h>
 
 //============================================================//
-// Standby Mode: "0", Test Message: "0T", LoRa Working: "0LW" //
+// Standby Mode: "0", LoRa Working: "0LW"                     //
 // Basic Mission: "1"                                         //
 // VTX On: "2"                                                //
 // Find Me Mode: "3", Buzzer: "3B"                            //    
@@ -70,13 +70,31 @@ int button_state = digitalRead(BUTTON);
     lcd.print("STANDBY");
 
     if (button_state == LOW){
-      lora.sendString("0T"); // Message to cansat to test LoRa communication, receive a confirmation message
+      lora.sendString("1"); // Message to cansat to start Basic Mission
     }
   }
 
 // Basic Mission
+  if (cansat_mode == "1"){
+    Serial.println("Basic Missiopn");
+    lcd.setCursor(0, 3);
+    lcd.print("Basic Mission");
+
+    if (button_state == LOW){
+      lora.sendString("2"); // Messagew to cansat to turn on VTX
+    }
+  }
 
 // VTX On
+  if (cansat_mode == "2"){
+    Serial.println("VTX On");
+    lcd.setCursor(0, 3);
+    lcd.print("VTX On");
+
+    if (button_state == LOW){
+      lora.sendString("3"); // Message to cansat to enter Find Me Mode
+    }
+  }
 
 // Find Me Mode
   if (cansat_mode == "3"){
@@ -123,7 +141,7 @@ int button_state = digitalRead(BUTTON);
     cansat_mode = "2"; // VTX On 
   }  
   if (packet.message == "3"){
-    cansat_mode = "3"; // Find Mw Mode 
+    cansat_mode = "3"; // Find Me Mode 
   }
 
 }
